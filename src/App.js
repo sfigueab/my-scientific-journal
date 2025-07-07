@@ -4,12 +4,10 @@ import { v4 as uuidv4 } from "uuid";
 import logo from "./logo.svg";
 import "./App.css";
 
-// Supabase setup
-const supabaseUrl = "https://adgtsnkeqeohwvmsrmuo.supabase.co";
-const supabaseAnonKey =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkZ3RzbmtlcWVvaHd2bXNybXVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5MTE2MjEsImV4cCI6MjA2NzQ4NzYyMX0.ZMiacgXr3-YFeUTzKofR6U6wGcwBs3RZPy5p77znasw";
+// Read from Vercel environment variables
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Create client with dynamic user_key header
 const createSupabaseClient = (key) =>
   createClient(supabaseUrl, supabaseAnonKey, {
     global: {
@@ -20,6 +18,7 @@ const createSupabaseClient = (key) =>
   });
 
 let supabase = createSupabaseClient(localStorage.getItem("userKey"));
+
 
 function App() {
   const [userKey, setUserKey] = useState(localStorage.getItem("userKey") || "");
