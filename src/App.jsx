@@ -1,54 +1,54 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { createClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
 import logo from './logo.svg';
 import './App.css';
 
-
+import Layout from './components/Layout';
+import MainPage from './pages/MainPage';
+import AnalyticsPage from './pages/AnalyticsPage';
+import TrackingPage from './pages/TrackingPage';
+import ProfilePage from './pages/ProfilePage';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-
 
 const createSupabaseClient = (key) =>
   createClient(supabaseUrl, supabaseAnonKey, {
     global: {
       headers: {
-        "x-user-key": key || "",
+        'x-user-key': key || '',
       },
     },
   });
 
-let supabase = createSupabaseClient(localStorage.getItem("userKey"));
-
+let supabase = createSupabaseClient(localStorage.getItem('userKey'));
 
 function App() {
-  const [userKey, setUserKey] = useState(localStorage.getItem("userKey") || "");
-  const [userName, setUserName] = useState("");
-  const [inputKey, setInputKey] = useState("");
-  const [inputName, setInputName] = useState("");
-  const [entryText, setEntryText] = useState("");
-  const [entries, setEntries] = useState([]);
-  const [error, setError] = useState("");
-  const [showWelcome, setShowWelcome] = useState(true);
+  const [userKey, setUserKey] = useState(localStorage.getItem('userKey') || '');
+  const [userName, setUserName] = useState('');
+  const [inputKey, setInputKey] = useState('');
+  const [inputName, setInputName] = useState('');
+  const [error, setError] = useState('');
+  const [showWelcome, setShowWelcome] = useState(!userKey);
   const [showNameInput, setShowNameInput] = useState(false);
+  const [showConfirmLogout, setShowConfirmLogout] = useState(false);
 
   const generateNewUser = async () => {
-    setError("");
+    setError('');
     const newKey = uuidv4();
 
     const { error: keyError } = await supabase
-      .from("keys")
+      .from('keys')
       .insert([{ user_key: newKey }]);
 
     if (keyError) {
-      setError("Key creation error: " + keyError.message);
+      setError('Key creation error: ' + keyError.message);
       return;
     }
 
-    localStorage.setItem("userKey", newKey);
+    localStorage.setItem('userKey', newKey);
     setUserKey(newKey);
     supabase = createSupabaseClient(newKey);
     setShowNameInput(true);
@@ -56,115 +56,80 @@ function App() {
 
   const submitName = async () => {
     if (!inputName.trim()) {
-      setError("Please enter a name.");
+      setError('Please enter a name.');
       return;
     }
 
-    const { error } = await supabase.from("journals").insert({
+    const { error } = await supabase.from('journals').insert({
       user_key: userKey,
       name: inputName,
       created_at: new Date().toISOString(),
     });
 
     if (error) {
-      setError("Failed to save name: " + error.message);
+      setError('Failed to save name: ' + error.message);
       return;
     }
 
     setUserName(inputName);
     setShowWelcome(false);
-    loadEntries(userKey);
   };
 
   const signInWithKey = async () => {
     const storedKey = inputKey.trim();
     if (!storedKey) {
-      setError("Please enter your key.");
+      setError('Please enter your key.');
       return;
     }
 
-    // ✅ Re-create client with provided key
     const tempClient = createSupabaseClient(storedKey);
-
-    // ✅ Use that client to check key existence
     const { data: keyData, error: keyError } = await tempClient
-      .from("keys")
-      .select("*")
-      .eq("user_key", storedKey)
+      .from('keys')
+      .select('*')
+      .eq('user_key', storedKey)
       .single();
 
     if (!keyData || keyError) {
-      setError("Key not found.");
+      setError('Key not found.');
       return;
     }
 
-    // ✅ Key exists — store and update globally
-    localStorage.setItem("userKey", storedKey);
+    localStorage.setItem('userKey', storedKey);
     setUserKey(storedKey);
     supabase = createSupabaseClient(storedKey);
 
-    // ✅ Check for user's name
     const { data: journalData } = await supabase
-      .from("journals")
-      .select("name")
-      .eq("user_key", storedKey)
+      .from('journals')
+      .select('name')
+      .eq('user_key', storedKey)
       .single();
 
     if (journalData?.name) {
       setUserName(journalData.name);
       setShowWelcome(false);
-      loadEntries(storedKey);
     } else {
       setShowNameInput(true);
     }
   };
 
-  const loadEntries = async (key) => {
-    const { data, error } = await supabase
-      .from("entries")
-      .select("*")
-      .eq("user_key", key)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      setError("Failed to load entries: " + error.message);
-      return;
-    }
-
-    setEntries(data);
+  const signOut = () => {
+    setShowConfirmLogout(true);
   };
 
-  const saveEntry = async () => {
-    if (!entryText.trim()) return;
-
-    const { error } = await supabase.from("entries").insert({
-      id: uuidv4(),
-      user_key: userKey,
-      text: entryText,
-      created_at: new Date().toISOString(),
-    });
-
-    if (!error) {
-      setEntryText("");
-      loadEntries(userKey);
-    } else {
-      setError("Failed to save entry: " + error.message);
-    }
+  const confirmSignOut = () => {
+    localStorage.removeItem('userKey');
+    setUserKey('');
+    setUserName('');
+    setInputKey('');
+    setInputName('');
+    setError('');
+    setShowWelcome(true);
+    setShowNameInput(false);
+    setShowConfirmLogout(false);
   };
 
-  const deleteEntry = async (id) => {
-    const { error } = await supabase.from("entries").delete().eq("id", id);
-    if (!error) {
-      loadEntries(userKey);
-    } else {
-      setError("Delete error: " + error.message);
-    }
-  };
-
-  const handleSignOut = () => {
-    localStorage.removeItem("userKey");
-    setUserKey("");
-    window.location.reload();
+  const cancelSignOut = () => {
+    setShowConfirmLogout(false);
   };
 
   if (showWelcome) {
@@ -175,9 +140,8 @@ function App() {
           Welcome to your Research Journey
         </h1>
         <p className="text-gray-600 mb-6 max-w-md">
-          Log, review, and save your unique research notes.
+          Log, review, and preserve your unique research notes.
         </p>
-
 
         {error && <p className="text-red-500 mb-4">{error}</p>}
 
@@ -229,80 +193,46 @@ function App() {
     );
   }
 
-  (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
-      <div className="max-w-2xl mx-auto text-center">
-        <button
-          onClick={handleSignOut}
-          className="absolute top-0 right-0 bg-red-500 text-white px-4 py-1 rounded hover:bg-red-600 text-sm"
-        >
-          Sign Out
-        </button>
-
-        <h1 className="text-3xl font-bold text-blue-700 mb-2">Research Journey</h1>
-
-        {userName && (
-          <p className="text-sm text-gray-600 mb-4">
-            Logged in as: <strong>{userName}</strong>
-          </p>
-        )}return 
-
-        {userKey && (
-          <div className="bg-blue-100 border border-blue-300 text-blue-900 p-4 rounded-xl mb-6 shadow">
-            <p className="text-sm font-semibold mb-1">Your Anonymous Key:</p>
-            <p className="font-mono text-xs break-all">{userKey}</p>
-            <p className="text-xs text-gray-500 mt-1">
-              Save this key to log back in next time.
+  return (
+    <>
+      {showConfirmLogout && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded shadow-lg max-w-sm text-center">
+            <h2 className="text-lg font-semibold mb-4">Sign Out?</h2>
+            <p className="mb-6 text-sm text-gray-700">
+              Are you sure you want to log out? You will need your key to log in again.
             </p>
+            <div className="flex justify-between">
+              <button
+                onClick={confirmSignOut}
+                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+              >
+                Yes, Sign Out
+              </button>
+              <button
+                onClick={cancelSignOut}
+                className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-        )}
-
-        <div className="bg-white p-4 rounded-xl shadow mb-6">
-          <textarea
-            value={entryText}
-            onChange={(e) => setEntryText(e.target.value)}
-            placeholder="Write your research notes here..."
-            rows={4}
-            className="w-full p-3 border border-gray-300 rounded mb-4 resize-none"
-          />
-          <button
-            onClick={saveEntry}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        </div>
+      )}
+      <Router>
+        <Routes>
+          <Route
+            path="/"
+            element={<Layout userName={userName} userKey={userKey} signOut={signOut} />}
           >
-            Save Entry
-          </button>
-        </div>
-
-        <div>
-          <h2 className="text-xl font-semibold mb-3">Previous Entries</h2>
-          {entries.length === 0 ? (
-            <p className="text-gray-500">No entries yet.</p>
-          ) : (
-            <ul className="space-y-4">
-              {entries.map((entry) => (
-                <li
-                  key={entry.id}
-                  className="bg-white p-4 rounded shadow flex justify-between items-start"
-                >
-                  <div>
-                    <p className="mb-2 whitespace-pre-wrap">{entry.text}</p>
-                    <small className="text-gray-500">
-                      {new Date(entry.created_at).toLocaleString()}
-                    </small>
-                  </div>
-                  <button
-                    onClick={() => deleteEntry(entry.id)}
-                    className="ml-4 text-red-500 hover:text-red-700 text-sm"
-                  >
-                    Delete
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    </div>
+            <Route index element={<MainPage userKey={userKey} />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="tracking" element={<TrackingPage />} />
+            <Route path="profile" element={<ProfilePage userName={userName} />} />
+          </Route>
+        </Routes>
+      </Router>
+    </>
   );
 }
 
